@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Movie Review Summarizer</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            padding: 20px;
+        }
+        #progressBar {
+            width: 100%;
+            height: 20px;
+            background-color: #f3f3f3;
+            border: 1px solid #ccc;
+            margin-top: 10px;
+        }
+        #progressFill {
+            height: 100%;
+            width: 0%;
+            background-color: #4caf50;
+            text-align: center;
+            line-height: 20px;
+            color: white;
+        }
+        #summary {
+            margin-top: 10px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            background: #f9f9f9;
+        }
+        .error {
+            color: red;
+        }
+    </style>
+    <script>
+        async function loadFiles() {
+            // Fetch available CSV files
+            try {
+                const response = await fetch('/list_files');
+                const result = await response.json();
+
+                if (response.ok) {
+                    const fileSelect = document.getElementById('filePath');
+                    fileSelect.innerHTML = ''; // Clear previous options
+
+                    result.files.forEach(file => {
+                        let option = document.createElement('option');
+                        option.value = file.path;
+                        option.textContent = file.name;
+                        fileSelect.appendChild(option);
+                    });
+                } else {
+                    document.getElementById('error').innerText = result.error;
+                }
+            } catch (error) {
+                document.getElementById('error').innerText = "Error fetching file list.";
+            }
+        }
+
+        async function uploadFile() {
+            const filePath = document.getElementById('filePath').value;
+            const progressElement = document.getElementById('progressText');
+            const progressFill = document.getElementById('progressFill');
+            const summaryElement = document.getElementById('summary');
+            const errorElement = document.getElementById('error');
+
+            // Reset UI
+            progressElement.innerText = 'Uploading...';
+            progressFill.style.width = '10%';
+            summaryElement.innerText = '';
+            errorElement.innerText = '';
+
+            try {
+                // Upload request
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+                    body: `filePath=${encodeURIComponent(filePath)}`,
+                });
+
+                const result = await response.json();
+
+                if (response.ok) {
+                    progressElement.innerText = 'Summarizing...';
+                    await checkProgress(); // Poll for progress
+                    summaryElement.innerText = result.summary;
+                } else {
+                    progressElement.innerText = 'Error';
+                    errorElement.innerText = result.error;
+                }
+            } catch (error) {
+                progressElement.innerText = 'Error';
+                errorElement.innerText = error.message;
+            }
+        }
+
+        async function checkProgress() {
+            const progressFill = document.getElementById('progressFill');
+            const progressElement = document.getElementById('progressText');
+
+            let progress = 0;
+            while (progress < 100) {
+                const response = await fetch('/progress');
+                const result = await response.json();
+                progress = result.progress;
+
+                progressFill.style.width = progress + "%";
+                progressElement.innerText = `Progress: ${progress}%`;
+
+                if (progress >= 100) break;
+                await new Promise(resolve => setTimeout(resolve, 1000)); // Wait 1s
+            }
+        }
+
+        // Load files when page loads
+        window.onload = loadFiles;
+    </script>
+</head>
+<body>
+    <h1>Movie Review Summarizer</h1>
+    
+    <label for="filePath">Select Movie Review File:</label>
+    <select id="filePath"></select>
+    <button onclick="uploadFile()">Upload</button>
+
+    <p><strong id="progressText">Progress: 0%</strong></p>
+    <div id="progressBar">
+        <div id="progressFill">0%</div>
+    </div>
+
+    <h2>Summary</h2>
+    <p id="summary"></p>
+
+    <p id="error" class="error"></p>
+</body>
+</html>
